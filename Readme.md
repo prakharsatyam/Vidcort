@@ -1,2 +1,2 @@
 # Vidcort
-nline video player 
+online video player 

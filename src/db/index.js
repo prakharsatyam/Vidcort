@@ -16,7 +16,7 @@ import { DB_NAME } from './../constants.js';
  export default connectDB
 
 
-//  CONNECTION INSTANCE OF DB
+//  CONNECTION INSTANCE OF DB when connected
 // <ref *1> Mongoose {
 //   connections: [
 //     NativeConnection {

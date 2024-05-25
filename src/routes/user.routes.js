@@ -8,13 +8,13 @@ router.route("/register").post(upload.fields([
         maxCount:1
     },
     {
-        name: "coverimg",
+        name: "coverImage",
         maxCount:1,
     }
 ]),registerUser)
 
 router.route("/").get((req,res)=>{
-    res.status(200).json({message:"we are going to deal with the login of users"})
+    res.status(200).json({message:"welcome to the user page"})
 })
 
 export default router;

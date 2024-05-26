@@ -38,7 +38,7 @@ const registerUser = asyncHandler(async (req, res) => {
       throw new ApiError(400,"avatar file is required: cloudinary error");
     }
   // create user object - create entry in db
-    const user =User.create({
+    const user =await User.create({
       fullname,
       avatar: avatar.url,
       coverImage:coverImage.url || "",

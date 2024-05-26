@@ -1,1 +1,1 @@
-export const DB_NAME ="vidcort"
+export const DB_NAME ="vidcortDB"

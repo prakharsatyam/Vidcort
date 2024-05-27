@@ -3,6 +3,20 @@ import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
+import  jwt  from 'jsonwebtoken';
+const generateAccessAndRefreshTokens=async(userId)=>{
+  try {
+    const user = await User.findById(userId)
+    const accessToken = user.generateAccessToken()
+    const refreshToken = user.generateRefreshToken()
+    user.refreshToken =refreshToken
+    await user.save({validateBeforeSave: false})
+    return {accessToken,refreshToken}
+    
+  } catch (error) {
+    throw new ApiError(500,"couldn't generate access and refresh token")
+  }
+}
 const registerUser = asyncHandler(async (req, res) => {
   // get user details from frontend
   const { username, email, fullname, password } = req.body;
@@ -57,5 +71,86 @@ const registerUser = asyncHandler(async (req, res) => {
   // return res
   return res.status(201).json(new ApiResponse(200,createdUser,"user registered successfully"))
 });
+const loginUser = asyncHandler(async (req,res)=>{
+  // get details from the body
+  const {email,password,username}= req.body
+  // username or email based
+if(!username && !email) throw new ApiError(400,"username or email is required")
+  // find user
+const user = await User.findOne({
+  $or:[{email},{username}]
+})
+if(!user) throw new ApiError(404,"user does not exist sign up first")
+  // check password
+  const isPasswordValid = await user.isPasswordCorrect(password)
+  if(!isPasswordValid) throw new ApiError(401,"Invalid User credentials")
+  // generate access and refresh token
+const {accessToken,refreshToken}=await generateAccessAndRefreshTokens(user._id)
+  // send cookies
+  const loggedinUser= await User.findById(user._id).select("-password -refreshToken")
 
-export { registerUser };
+  const options={ // this ensures that the cookies can only be edited at the server side
+    httpOnly: true,
+    secure: true
+  }
+  return res.status(200).cookie("accessToken",accessToken,options).cookie("refreshToken",refreshToken,options).json(
+    new ApiResponse(
+      200,{
+        user: loggedinUser,accessToken,refreshToken
+      },"user logged in successfully"
+    )
+  )
+})
+
+const logoutUser = asyncHandler(async (req,res)=>{
+  // finding the user 
+  User.findByIdAndUpdate(
+    req.user._id,
+    {
+      $set: {
+        refreshToken: undefined,
+      }},
+      {
+        new:true
+      }
+    
+  )
+  //  ensuring that the cookies can only be edited at the server side 
+  const options={ 
+    httpOnly: true,
+    secure: true
+  }
+  //removing his cookies 
+  return res
+  .status(200)
+  .clearCookie("refreshToken",options)
+  .clearCookie("accessToken",options)
+  .json(new ApiResponse(200,{},"User logged out successfully"))
+
+})
+
+const refreshAccessToken = asyncHandler(async (req,res)=>{
+//get the refresh token from the user 
+const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken
+if(!incomingRefreshToken) throw new ApiError(401,"unauthorized accessas no refresh token is present please login ")
+// decode it and check wether there exists a token in the database 
+const decodedRefreshToken = jwt.verify(incomingRefreshToken,process.env.REFRESH_TOKEN_SECRET);
+const user=await User.findById(decodedRefreshToken._id)
+if(!user) throw new ApiError(401, "Invalid refresh token you might not have signed up or your token must have expired")
+//check if the incoming refresh token and the token in databse are the same
+if(!(incomingRefreshToken==user.refreshToken)) throw new ApiError(401,"Refresh tokens do not match refresh token has expired login to continue")
+  //generate send these tokens and save the new refresh token in the databse 
+const options={
+  httpOnly:true,
+  secure:true,
+}
+const {accessToken,newRefreshToken}= await generateAccessAndRefreshTokens(user._id)
+res.status(200)
+.cookie("accesstoken",accessToken,options)
+.cookie("refreshToken",newRefreshToken,options)
+.json(
+  new ApiResponse(200,{accessToken,refreshToken:newRefreshToken},"Access and refresh token refreshed and the refresh token saved in db")
+)
+})
+
+export { registerUser,loginUser,logoutUser,refreshAccessToken};
